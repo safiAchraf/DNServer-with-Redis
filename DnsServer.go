@@ -7,22 +7,31 @@ import (
 )
 
 func main() {
-	hostname, err := os.Hostname()
+	addr , err := net.ResolveUDPAddr("udp" , ":8080")
 	if err != nil {
-		fmt.Println(err)
-		return
+		fmt.Println("error creating the addr")
 	}
-	fmt.Println("Hostname : ", hostname)
+	conn , err := net.ListenUDP("udp", addr)
 
-	addrs, err := net.LookupHost(hostname)
 	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	for _, addr := range addrs {
-		fmt.Println("IP: ", addr)
+		fmt.Println("error listening")
 	}
 
-	
+	buffer := make([]byte , 1024)
 
+
+	for {
+		n , senderAddr , err := conn.ReadFromUDP(buffer)
+		if err != nil{
+			fmt.Println("error recieve packet")
+			continue
+		}
+		fmt.Println("recieved msg from %s : %s \n" , senderAddr , string(buffer[:n]))
+
+		message := []byte("hellow negro")
+		n , err = conn.WriteTo(message , senderAddr)
+		if err != nil {
+			fmt.Println("hello negreo didnt sent")
+		}
+	}
 }
