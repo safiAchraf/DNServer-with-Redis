@@ -6,6 +6,10 @@ import (
 	"encoding/binary"
 )
 
+
+type DNSBody struct {
+
+}
 type DNSHeader struct {
     ID      uint16 
     Flags   uint16 
