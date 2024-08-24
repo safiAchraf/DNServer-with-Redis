@@ -62,8 +62,36 @@ func (q *DNSquestion) DnsQuestionToBytes() ([]byte , error){
     return buffer, nil
 }
 
-func (q * DNSquestion) SerializeDnsQuestionFromBytes([] byte) error {
+func (q * DNSquestion) SerializeDnsQuestionFromBytes(rawBytes [] byte) error {
+    q.domain = ""
+    i := 0
 
+    for i < len(rawBytes) && rawBytes[i] != 0 {
+        partLength := int(rawBytes[i])
+        i++
+
+        if i + partLength > len(rawBytes) {
+            return fmt.Errorf("the data u sent is not complete (the domain size dont match with the content)")
+        }
+
+        if len(q.domain) > 0 {
+            q.domain += "."
+        }
+
+        q.domain = string(rawBytes[i : i+ partLength])
+        i += partLength
+    }
+    i++
+
+    if len(rawBytes) < i+4 {
+        return fmt.Errorf("the class and type field are not recieved or corrupted")
+    }
+
+    q.QuesType = binary.BigEndian.Uint16(rawBytes[i : i+2])
+
+    i+=2
+    q.QuesClass = binary.BigEndian.Uint16(rawBytes[i : i+2])
+    
     return nil
 }
 
