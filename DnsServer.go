@@ -1,15 +1,12 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
-	"encoding/binary"
+	"strings"
 )
 
-
-type DNSBody struct {
-
-}
 type DNSHeader struct {
     ID      uint16 
     Flags   uint16 
@@ -42,6 +39,34 @@ func (h *DNSHeader) SerializeDnsHeaderFromBytes(data []byte) error {
     h.ARCount = binary.BigEndian.Uint16(data[10:12])
     return nil
 }
+
+type DNSquestion struct {
+    domain string
+    QuesType uint16
+    QuesClass uint16
+}
+
+
+
+func (q *DNSquestion) DnsQuestionToBytes() ([]byte , error){
+    DomainParts := []byte{}
+    for _,part := range strings.Split(q.domain, ".") {
+        DomainParts = append(DomainParts, byte(len(part)))
+        DomainParts = append(DomainParts, []byte(part)...)
+    }
+    DomainParts = append(DomainParts, byte(0))
+    buffer := make([]byte , len(DomainParts) + 4 )
+    copy(buffer, DomainParts)
+    binary.BigEndian.PutUint16(buffer[len(DomainParts):len(DomainParts)+2], q.QuesType)
+    binary.BigEndian.PutUint16(buffer[len(DomainParts)+2:], q.QuesClass)
+    return buffer, nil
+}
+
+func (q * DNSquestion) SerializeDnsQuestionFromBytes([] byte) error {
+
+    return nil
+}
+
 
 func main() {
 	addr , err := net.ResolveUDPAddr("udp" , ":8080")
@@ -76,7 +101,7 @@ func main() {
 
 		n , err = conn.WriteToUDP(message , senderAddr)
 		if err != nil {
-			fmt.Println("hello negreo didnt sent")
+			fmt.Println("hello negro didnt sent")
 		}
 	}
 }
