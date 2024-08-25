@@ -115,7 +115,7 @@ func (a *DNSAnswer) ToBytes() ([]byte, error) {
         nameParts = append(nameParts, byte(len(part)))
         nameParts = append(nameParts, []byte(part)...)
     }
-    nameParts = append(nameParts, 0) // End with a null byte
+    nameParts = append(nameParts, 0) 
 
     buffer := make([]byte, len(nameParts)+10+int(a.DataLength))
     copy(buffer, nameParts)
@@ -152,7 +152,7 @@ func (a *DNSAnswer) DnsAnswerFromBytes(data []byte) error {
         i += labelLength
     }
 
-    i++ // Skip the null byte
+    i++ 
 
     if len(data) < i+10 {
         return fmt.Errorf("invalid DNS answer format: insufficient data")
@@ -178,12 +178,13 @@ func (a *DNSAnswer) DnsAnswerFromBytes(data []byte) error {
 
 
 func main() {
+
 	addr , err := net.ResolveUDPAddr("udp" , ":8080")
 	if err != nil {
 		fmt.Println("error creating the addr")
 	}
-	conn , err := net.ListenUDP("udp", addr)
 
+	conn , err := net.ListenUDP("udp", addr)
 	if err != nil {
 		fmt.Println("error listening")
 	}
@@ -206,7 +207,7 @@ func main() {
 		}
 		fmt.Println("recieved msg from %s : %s 	\n" , senderAddr , string(buffer[:n]))
 
-		message , err := header.DnsHeaderToBytes()
+		message , err := header.ToBytes()
 
 		n , err = conn.WriteToUDP(message , senderAddr)
 		if err != nil {
