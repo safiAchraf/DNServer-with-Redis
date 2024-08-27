@@ -285,7 +285,6 @@ func main() {
 			continue
 		}
 		fmt.Println("recieved msg from %s : %s 	\n" , senderAddr , string(buffer[:n]))
-        HelloFromTHeotherfile()
 		message , err := header.serialize()
 
 		n , err = conn.WriteToUDP(message , senderAddr)
