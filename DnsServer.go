@@ -8,68 +8,6 @@ import (
 )
 
 
-
-
-type DNSQuestion struct {
-    domain string
-    QuesType uint16
-    QuesClass uint16
-}
-
-
-func (q *DNSQuestion) serialize() ([]byte , error){
-    DomainParts := []byte{}
-
-    for _,part := range strings.Split(q.domain, ".") {
-        DomainParts = append(DomainParts, byte(len(part)))
-        DomainParts = append(DomainParts, []byte(part)...)
-    }
-
-    DomainParts = append(DomainParts, byte(0))
-
-    buffer := make([]byte , len(DomainParts) + 4 )
-
-    copy(buffer, DomainParts)
-
-    binary.BigEndian.PutUint16(buffer[len(DomainParts):len(DomainParts)+2], q.QuesType)
-    binary.BigEndian.PutUint16(buffer[len(DomainParts)+2:], q.QuesClass)
-    return buffer, nil
-}
-
-func (q * DNSQuestion) DnsQuestionFromBytes(rawBytes [] byte) error {
-    q.domain = ""
-    i := 0
-
-    for i < len(rawBytes) && rawBytes[i] != 0 {
-        partLength := int(rawBytes[i])
-        i++
-
-        if i + partLength > len(rawBytes) {
-            return fmt.Errorf("the data u sent is not complete (the domain size dont match with the content)")
-        }
-
-        if len(q.domain) > 0 {
-            q.domain += "."
-        }
-
-        q.domain = string(rawBytes[i : i+ partLength])
-        i += partLength
-    }
-    i++
-
-    if len(rawBytes) < i+4 {
-        return fmt.Errorf("the class and type field are not recieved or corrupted")
-    }
-
-    q.QuesType = binary.BigEndian.Uint16(rawBytes[i : i+2])
-
-    i+=2
-    q.QuesClass = binary.BigEndian.Uint16(rawBytes[i : i+2])
-
-    return nil
-}
-
-
 type DNSResourceRecords  struct {
     Name       string 
     Type       uint16 
@@ -146,6 +84,69 @@ func (answer *DNSResourceRecords) FromBytes(data []byte) error {
     return nil
 }
 
+
+type DNSQuestion struct {
+    domain string
+    QuesType uint16
+    QuesClass uint16
+}
+
+
+func (q *DNSQuestion) serialize() ([]byte , error){
+    DomainParts := []byte{}
+
+    for _,part := range strings.Split(q.domain, ".") {
+        DomainParts = append(DomainParts, byte(len(part)))
+        DomainParts = append(DomainParts, []byte(part)...)
+    }
+
+    DomainParts = append(DomainParts, byte(0))
+
+    buffer := make([]byte , len(DomainParts) + 4 )
+
+    copy(buffer, DomainParts)
+
+    binary.BigEndian.PutUint16(buffer[len(DomainParts):len(DomainParts)+2], q.QuesType)
+    binary.BigEndian.PutUint16(buffer[len(DomainParts)+2:], q.QuesClass)
+    return buffer, nil
+}
+
+func (q * DNSQuestion) DnsQuestionFromBytes(rawBytes [] byte) error {
+    q.domain = ""
+    i := 0
+
+    for i < len(rawBytes) && rawBytes[i] != 0 {
+        partLength := int(rawBytes[i])
+        i++
+
+        if i + partLength > len(rawBytes) {
+            return fmt.Errorf("the data u sent is not complete (the domain size dont match with the content)")
+        }
+
+        if len(q.domain) > 0 {
+            q.domain += "."
+        }
+
+        q.domain = string(rawBytes[i : i+ partLength])
+        i += partLength
+    }
+    i++
+
+    if len(rawBytes) < i+4 {
+        return fmt.Errorf("the class and type field are not recieved or corrupted")
+    }
+
+    q.QuesType = binary.BigEndian.Uint16(rawBytes[i : i+2])
+
+    i+=2
+    q.QuesClass = binary.BigEndian.Uint16(rawBytes[i : i+2])
+
+    return nil
+}
+
+
+
+
 type DNSHeader struct {
     ID      uint16 
     Flags   uint16 
@@ -214,6 +215,46 @@ func (message *DNSMessage) serialize() ([]byte , error){
     return buffer , nil
 }
 
+func (message *DNSMessage) DNSMessageFromBytes(data []byte) error {
+    var offset int
+    var err error
+
+    if err = message.Header.DnsHeaderFromBytes(data[:12]); err != nil {
+        return fmt.Errorf("failed to parse DNS header: %v", err)
+    }
+    offset = 12
+
+    message.Questions = make([]DNSQuestion, message.Header.QDCount)
+
+    for i := 0; i < int(message.Header.QDCount); i++ {
+
+        var question DNSQuestion
+
+        if err = question.DnsQuestionFromBytes(data[offset:]); err != nil {
+            return fmt.Errorf("failed to parse DNS question: %v", err)
+        }
+        message.Questions[i] = question
+
+        offset += len(question.domain) + 2 + 2 + 1 
+    }
+
+    message.ResourceRecords = make([]DNSResourceRecords, message.Header.ANCount)
+
+    for i := 0; i < int(message.Header.ANCount); i++ {
+
+        var resourceRecord DNSResourceRecords
+
+        if err = resourceRecord.FromBytes(data[offset:]); err != nil {
+            return fmt.Errorf("failed to parse DNS resource record: %v", err)
+        }
+        message.ResourceRecords[i] = resourceRecord
+        offset += len(resourceRecord.Name) + 2 + 2 + 4 + 2 + int(resourceRecord.DataLength) // Name + TYPE + CLASS + TTL + DataLength + RData
+    }
+
+    return nil
+}
+
+
 
 func main() {
 
@@ -244,7 +285,7 @@ func main() {
 			continue
 		}
 		fmt.Println("recieved msg from %s : %s 	\n" , senderAddr , string(buffer[:n]))
-
+        HelloFromTHeotherfile()
 		message , err := header.serialize()
 
 		n , err = conn.WriteToUDP(message , senderAddr)
