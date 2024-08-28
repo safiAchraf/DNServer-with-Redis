@@ -145,6 +145,36 @@ func (q * DNSQuestion) DnsQuestionFromBytes(rawBytes [] byte) error {
 }
 
 
+type DNSQuery struct {
+	Header          DNSHeader
+	Questions       []DNSQuestion
+}
+
+func (query *DNSQuery) DNSMessageFromBytes(data []byte) error {
+    var offset int
+    var err error
+
+    if err = query.Header.DnsHeaderFromBytes(data[:12]); err != nil {
+        return fmt.Errorf("failed to parse DNS header: %v", err)
+    }
+    offset = 12
+
+    query.Questions = make([]DNSQuestion, query.Header.QDCount)
+
+    for i := 0; i < int(query.Header.QDCount); i++ {
+
+        var question DNSQuestion
+
+        if err = question.DnsQuestionFromBytes(data[offset:]); err != nil {
+            return fmt.Errorf("failed to parse DNS question: %v", err)
+        }
+        query.Questions[i] = question
+
+        offset += len(question.domain) + 2 + 2 + 1 
+    }
+
+    return nil
+}
 
 
 type DNSHeader struct {
@@ -185,7 +215,6 @@ type DNSMessage struct {
 	Questions       []DNSQuestion
 	ResourceRecords []DNSResourceRecords
 }
-
 
 func (message *DNSMessage) serialize() ([]byte , error){
     buffer := []byte{}
@@ -254,7 +283,54 @@ func (message *DNSMessage) DNSMessageFromBytes(data []byte) error {
     return nil
 }
 
+func HandleDNSquery(request []byte, upstreamDNS string, cache *DNSCache) ([]byte, error) {
 
+	var q DNSQuestion
+	err := q.DnsQuestionFromBytes(request[12:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DNS question: %v", err)
+	}
+
+	// Check the cache first
+	if cachedResponse, found := cache.Get(q.domain); found {
+		fmt.Printf("Cache hit for %s\n", q.domain)
+		return cachedResponse, nil
+	}
+
+	// If not found in cache, forward the request to the upstream DNS server
+	upstreamAddr, err := net.ResolveUDPAddr("udp", upstreamDNS)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve upstream DNS address: %v", err)
+	}
+
+	conn, err := net.DialUDP("udp", nil, upstreamAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to upstream DNS server: %v", err)
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send DNS request to upstream server: %v", err)
+	}
+
+	// Receive the response from the upstream DNS server
+	response := make([]byte, 512)
+	n, _, err := conn.ReadFromUDP(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to receive DNS response from upstream server: %v", err)
+	}
+	response = response[:n]
+
+	// Extract TTL from the response and cache it
+	ttl, err := ExtractTTL(response)
+	if err == nil && ttl > 0 {
+		cache.Set(q.domain, response, ttl)
+		fmt.Printf("Cached response for %s with TTL %d seconds\n", q.Name, ttl.Seconds())
+	}
+
+	return response, nil
+}
 
 func main() {
 
