@@ -291,13 +291,11 @@ func HandleDNSquery(request []byte, upstreamDNS string, cache *DNSCache) ([]byte
 		return nil, fmt.Errorf("failed to parse DNS question: %v", err)
 	}
 
-	// Check the cache first
 	if cachedResponse, found := cache.Get(q.domain); found {
 		fmt.Printf("Cache hit for %s\n", q.domain)
 		return cachedResponse, nil
 	}
 
-	// If not found in cache, forward the request to the upstream DNS server
 	upstreamAddr, err := net.ResolveUDPAddr("udp", upstreamDNS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve upstream DNS address: %v", err)
@@ -314,7 +312,6 @@ func HandleDNSquery(request []byte, upstreamDNS string, cache *DNSCache) ([]byte
 		return nil, fmt.Errorf("failed to send DNS request to upstream server: %v", err)
 	}
 
-	// Receive the response from the upstream DNS server
 	response := make([]byte, 512)
 	n, _, err := conn.ReadFromUDP(response)
 	if err != nil {
@@ -322,7 +319,6 @@ func HandleDNSquery(request []byte, upstreamDNS string, cache *DNSCache) ([]byte
 	}
 	response = response[:n]
 
-	// Extract TTL from the response and cache it
 	ttl, err := ExtractTTL(response)
 	if err == nil && ttl > 0 {
 		cache.Set(q.domain, response, ttl)
