@@ -253,13 +253,14 @@ func (message *DNSMessage) DNSMessageFromBytes(data []byte) error {
     }
     offset = 12
 
-    message.Questions = make([]DNSQuestion, message.Header.QDCount)
+    message.Questions = make([]DNSQuestion, int(message.Header.QDCount))
 
     for i := 0; i < int(message.Header.QDCount); i++ {
 
         var question DNSQuestion
 
         if err = question.DnsQuestionFromBytes(data[offset:]); err != nil {
+            fmt.Printf("failed to parse DNS question: %v", err)
             return fmt.Errorf("failed to parse DNS question: %v", err)
         }
         message.Questions[i] = question
@@ -274,6 +275,7 @@ func (message *DNSMessage) DNSMessageFromBytes(data []byte) error {
         var resourceRecord DNSResourceRecords
 
         if err = resourceRecord.FromBytes(data[offset:]); err != nil {
+            fmt.Printf("failed to parse DNS resource record: %v", err)
             return fmt.Errorf("failed to parse DNS resource record: %v", err)
         }
         message.ResourceRecords[i] = resourceRecord
@@ -283,18 +285,18 @@ func (message *DNSMessage) DNSMessageFromBytes(data []byte) error {
     return nil
 }
 
-func HandleDNSquery(request []byte, upstreamDNS string, cache *DNSCache) ([]byte, error) {
+func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
 
-	var q DNSQuestion
-	err := q.DnsQuestionFromBytes(request[12:])
+	var query DNSQuery
+	err := query.DNSMessageFromBytes(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse DNS question: %v", err)
 	}
 
-	if cachedResponse, found := cache.Get(q.domain); found {
-		fmt.Printf("Cache hit for %s\n", q.domain)
-		return cachedResponse, nil
-	}
+	// if cachedResponse, found := cache.Get(query.Questions[0].domain); found {
+	// 	fmt.Printf("Cache hit for %s\n", query.Questions[0].domain)
+	// 	return cachedResponse, nil
+	// }
 
 	upstreamAddr, err := net.ResolveUDPAddr("udp", upstreamDNS)
 	if err != nil {
@@ -319,10 +321,15 @@ func HandleDNSquery(request []byte, upstreamDNS string, cache *DNSCache) ([]byte
 	}
 	response = response[:n]
 
-	ttl, err := ExtractTTL(response)
+	var answer DNSMessage
+    err = answer.DNSMessageFromBytes(response)
+    if err != nil {
+		fmt.Printf("error serializing the bytes into a dns message \n error : %s" , err)
+    }
+    ttl := int(answer.ResourceRecords[0].TTL)
 	if err == nil && ttl > 0 {
-		cache.Set(q.domain, response, ttl)
-		fmt.Printf("Cached response for %s with TTL %d seconds\n", q.Name, ttl.Seconds())
+		// cache.Set(query.Questions[0].domain, response, ttl)
+		fmt.Printf("Cached response for %s with TTL %d seconds\n", query.Questions[0].domain, ttl)
 	}
 
 	return response, nil
@@ -341,14 +348,6 @@ func main() {
 	}
 
 	buffer := make([]byte , 1024)
-	header := DNSHeader{
-        ID:      0x1234,
-        Flags:   0x8180, 
-        QDCount: 1,      
-        ANCount: 1,      
-        NSCount: 0,
-        ARCount: 0,
-    }
 
 	for {
 		n , senderAddr , err := conn.ReadFromUDP(buffer)
@@ -357,9 +356,10 @@ func main() {
 			continue
 		}
 		fmt.Println("recieved msg from %s : %s 	\n" , senderAddr , string(buffer[:n]))
-		message , err := header.serialize()
 
-		n , err = conn.WriteToUDP(message , senderAddr)
+        responce , err := HandleDNSquery(buffer[:n] , "8.8.8.8:53")
+
+		_ , err = conn.WriteToUDP(responce , senderAddr)
 		if err != nil {
 			fmt.Println("hello negro didnt sent")
 		}
