@@ -47,20 +47,65 @@ func (answer *DNSResourceRecords) FromBytes(data []byte) error {
     i := 0
     answer.Name = ""
     
-    for i < len(data) && data[i] != 0 {
-        labelLength := int(data[i])
-        i++
-        if i+labelLength > len(data) {
-            return fmt.Errorf("invalid DNS answer format: label length exceeds data size")
+    // Helper function to decode a domain name with compression
+    var parseName func(offset int) (string, int, error)
+    parseName = func(offset int) (string, int, error) {
+        name := ""
+        jumped := false
+        originalOffset := offset
+
+        for {
+            if offset >= len(data) {
+                return "", offset, fmt.Errorf("offset exceeds data length")
+            }
+
+            length := int(data[offset])
+            if length == 0 {
+                offset++
+                break
+            }
+
+            // Check if it's a pointer (compression)
+            if length&0xC0 == 0xC0 {
+                if offset+1 >= len(data) {
+                    return "", offset, fmt.Errorf("pointer exceeds data length")
+                }
+                if !jumped {
+                    originalOffset = offset + 2
+                }
+                pointerOffset := int(binary.BigEndian.Uint16(data[offset:offset+2]) & 0x3FFF)
+                if pointerOffset >= len(data) {
+                    return "", offset, fmt.Errorf("pointer offset exceeds data length")
+                }
+                offset = pointerOffset
+                jumped = true
+                continue
+            }
+
+            offset++
+            if offset+length > len(data) {
+                return "", offset, fmt.Errorf("label length exceeds data size")
+            }
+
+            if len(name) > 0 {
+                name += "."
+            }
+            name += string(data[offset : offset+length])
+            offset += length
         }
-        if len(answer.Name) > 0 {
-            answer.Name += "."
+
+        if jumped {
+            return name, originalOffset, nil
         }
-        answer.Name += string(data[i : i+labelLength])
-        i += labelLength
+        return name, offset, nil
     }
 
-    i++ 
+    // Parse the name, handling possible compression
+    var err error
+    answer.Name, i, err = parseName(i)
+    if err != nil {
+        return err
+    }
 
     if len(data) < i+10 {
         return fmt.Errorf("invalid DNS answer format: insufficient data")
@@ -83,6 +128,7 @@ func (answer *DNSResourceRecords) FromBytes(data []byte) error {
 
     return nil
 }
+
 
 
 type DNSQuestion struct {
