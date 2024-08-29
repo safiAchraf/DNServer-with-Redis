@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 )
 
 
@@ -47,65 +48,20 @@ func (answer *DNSResourceRecords) FromBytes(data []byte) error {
     i := 0
     answer.Name = ""
     
-    // Helper function to decode a domain name with compression
-    var parseName func(offset int) (string, int, error)
-    parseName = func(offset int) (string, int, error) {
-        name := ""
-        jumped := false
-        originalOffset := offset
-
-        for {
-            if offset >= len(data) {
-                return "", offset, fmt.Errorf("offset exceeds data length")
-            }
-
-            length := int(data[offset])
-            if length == 0 {
-                offset++
-                break
-            }
-
-            // Check if it's a pointer (compression)
-            if length&0xC0 == 0xC0 {
-                if offset+1 >= len(data) {
-                    return "", offset, fmt.Errorf("pointer exceeds data length")
-                }
-                if !jumped {
-                    originalOffset = offset + 2
-                }
-                pointerOffset := int(binary.BigEndian.Uint16(data[offset:offset+2]) & 0x3FFF)
-                if pointerOffset >= len(data) {
-                    return "", offset, fmt.Errorf("pointer offset exceeds data length")
-                }
-                offset = pointerOffset
-                jumped = true
-                continue
-            }
-
-            offset++
-            if offset+length > len(data) {
-                return "", offset, fmt.Errorf("label length exceeds data size")
-            }
-
-            if len(name) > 0 {
-                name += "."
-            }
-            name += string(data[offset : offset+length])
-            offset += length
+    for i < len(data) && data[i] != 0 {
+        labelLength := int(data[i])
+        i++
+        if i+labelLength > len(data) {
+            return fmt.Errorf("invalid DNS answer format: label length exceeds data size")
         }
-
-        if jumped {
-            return name, originalOffset, nil
+        if len(answer.Name) > 0 {
+            answer.Name += "."
         }
-        return name, offset, nil
+        answer.Name += string(data[i : i+labelLength])
+        i += labelLength
     }
 
-    // Parse the name, handling possible compression
-    var err error
-    answer.Name, i, err = parseName(i)
-    if err != nil {
-        return err
-    }
+    i++ 
 
     if len(data) < i+10 {
         return fmt.Errorf("invalid DNS answer format: insufficient data")
@@ -128,7 +84,6 @@ func (answer *DNSResourceRecords) FromBytes(data []byte) error {
 
     return nil
 }
-
 
 
 type DNSQuestion struct {
@@ -331,6 +286,31 @@ func (message *DNSMessage) DNSMessageFromBytes(data []byte) error {
     return nil
 }
 
+func ExtractTTL(response []byte) (time.Duration, error) {
+	if len(response) < 12 {
+		return 0, fmt.Errorf("response too short to extract TTL")
+	}
+
+	// Skip the header and question section to find the answer section
+	offset := 12
+	for {
+		labelLen := int(response[offset])
+		offset++
+		if labelLen == 0 {
+			break
+		}
+		offset += labelLen
+	}
+	offset += 4 // Skip QTYPE and QCLASS
+
+	if len(response) < offset+4 {
+		return 0, fmt.Errorf("response too short to extract TTL")
+	}
+
+	ttl := binary.BigEndian.Uint32(response[offset : offset+4])
+	return time.Duration(ttl) * time.Second, nil
+}
+
 func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
 
 	var query DNSQuery
@@ -367,15 +347,10 @@ func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
 	}
 	response = response[:n]
 
-	var answer DNSMessage
-    err = answer.DNSMessageFromBytes(response)
-    if err != nil {
-		fmt.Printf("error serializing the bytes into a dns message \n error : %s" , err)
-    }
-    ttl := int(answer.ResourceRecords[0].TTL)
+    ttl , err := ExtractTTL(response)
 	if err == nil && ttl > 0 {
 		// cache.Set(query.Questions[0].domain, response, ttl)
-		fmt.Printf("Cached response for %s with TTL %d seconds\n", query.Questions[0].domain, ttl)
+		fmt.Printf("Cached response for %s with TTL %d seconds\n", query.Questions[0].domain, ttl.Seconds())
 	}
 
 	return response, nil
