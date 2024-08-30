@@ -128,7 +128,7 @@ func (q * DNSQuestion) DnsQuestionFromBytes(rawBytes [] byte) error {
             q.domain += "."
         }
 
-        q.domain = string(rawBytes[i : i+ partLength])
+        q.domain += string(rawBytes[i : i+ partLength])
         i += partLength
     }
     i++
@@ -319,6 +319,10 @@ func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to parse DNS question: %v", err)
 	}
 
+    for i := 0 ; i < int(query.Header.QDCount) ; i++ {
+        fmt.Printf("query domain number %d : %s ,", i , query.Questions[0].domain)
+    }
+
 	// if cachedResponse, found := cache.Get(query.Questions[0].domain); found {
 	// 	fmt.Printf("Cache hit for %s\n", query.Questions[0].domain)
 	// 	return cachedResponse, nil
@@ -350,7 +354,7 @@ func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
     ttl , err := ExtractTTL(response)
 	if err == nil && ttl > 0 {
 		// cache.Set(query.Questions[0].domain, response, ttl)
-		fmt.Printf("Cached response for %s with TTL %d seconds\n", query.Questions[0].domain, ttl.Seconds())
+		fmt.Printf("Cached response for %s with TTL %v seconds\n", query.Questions[0].domain, ttl.Seconds())
 	}
 
 	return response, nil
