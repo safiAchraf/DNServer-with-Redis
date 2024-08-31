@@ -12,7 +12,6 @@ func GetUpstream() (string, error) {
 		"1.1.1.1:53",        // Cloudflare DNS
 		"208.67.222.222:53", // OpenDNS
 		"9.9.9.9:53",        // Quad9 DNS
-		"185.228.168.168:53", // CleanBrowsing Family Filter
 		"8.26.56.26:53",     // Comodo Secure DNS
 		"4.2.2.1:53",        // Level3 DNS
 		"77.88.8.8:53",      // Yandex DNS Basic
