@@ -381,8 +381,14 @@ func main() {
 			continue
 		}
 		fmt.Println("recieved msg from %s : %s 	\n" , senderAddr , string(buffer[:n]))
-
-        responce , err := HandleDNSquery(buffer[:n] , "8.8.8.8:53")
+        upsteam , err := GetUpstream()
+        if err != nil{
+            fmt.Printf("the world is down")
+        }
+        responce , err := HandleDNSquery(buffer[:n] , upsteam)
+        if err != nil {
+            fmt.Printf("the world is down vol 2")
+        }
 
 		_ , err = conn.WriteToUDP(responce , senderAddr)
 		if err != nil {
