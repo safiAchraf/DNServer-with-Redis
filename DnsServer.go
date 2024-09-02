@@ -18,12 +18,7 @@ func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
     for i := 0 ; i < int(query.Header.QDCount) ; i++ {
         fmt.Printf("query domain number %d : %s ,", i , query.Questions[0].domain)
     }
-
-	// if cachedResponse, found := cache.Get(query.Questions[0].domain); found {
-	// 	fmt.Printf("Cache hit for %s\n", query.Questions[0].domain)
-	// 	return cachedResponse, nil
-	// }
-
+	
 	upstreamAddr, err := net.ResolveUDPAddr("udp", upstreamDNS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve upstream DNS address: %v", err)
@@ -49,7 +44,6 @@ func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
 
     ttl , err := ExtractTTL(response)
 	if err == nil && ttl > 0 {
-		// cache.Set(query.Questions[0].domain, response, ttl)
 		fmt.Printf("Cached response for %s with TTL %v seconds\n", query.Questions[0].domain, ttl.Seconds())
 	}
 
