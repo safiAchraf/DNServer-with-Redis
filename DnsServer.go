@@ -1,13 +1,18 @@
 package main
 
-import(
-    "fmt"
-    "net"
+import (
+	"context"
+	"fmt"
+	"net"
+
+	"github.com/redis/go-redis/v9"
 )
 
 
+var ctx = context.Background()
 
-func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
+
+func HandleDNSquery(request []byte, upstreamDNS string , rdb *redis.Client) ([]byte, error) {
 
 	var query DNSQuery
 	err := query.DNSMessageFromBytes(request)
@@ -18,6 +23,11 @@ func HandleDNSquery(request []byte, upstreamDNS string) ([]byte, error) {
     for i := 0 ; i < int(query.Header.QDCount) ; i++ {
         fmt.Printf("query domain number %d : %s ,", i , query.Questions[0].domain)
     }
+
+	cachedResponse, err := getCachedDNSResponse(ctx , rdb, query.Questions[0].domain)
+		if err == nil && len(cachedResponse) > 0 {
+			return cachedResponse , nil
+	}
 	
 	upstreamAddr, err := net.ResolveUDPAddr("udp", upstreamDNS)
 	if err != nil {
@@ -79,6 +89,7 @@ func main() {
         if err != nil {
             fmt.Printf("the world is down vol 2")
         }
+
 
 		_ , err = conn.WriteToUDP(responce , senderAddr)
 		if err != nil {
