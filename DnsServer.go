@@ -54,13 +54,22 @@ func HandleDNSquery(request []byte, upstreamDNS string , rdb *redis.Client) ([]b
 
     ttl , err := ExtractTTL(response)
 	if err == nil && ttl > 0 {
+		err = cacheDNSResponse(ctx , rdb, query.Questions[0].domain, response, ttl)
+		if err != nil {
+			fmt.Println("error caching DNS response:", err)
+		}else{
 		fmt.Printf("Cached response for %s with TTL %v seconds\n", query.Questions[0].domain, ttl.Seconds())
+		}
 	}
 
 	return response, nil
 }
 
 func main() {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379", 
+		DB:   0,                
+	})
 
 	addr , err := net.ResolveUDPAddr("udp" , ":8080")
 	if err != nil {
@@ -85,10 +94,11 @@ func main() {
         if err != nil{
             fmt.Printf("the world is down")
         }
-        responce , err := HandleDNSquery(buffer[:n] , upsteam , )
+        responce , err := HandleDNSquery(buffer[:n] , upsteam , rdb)
         if err != nil {
             fmt.Printf("the world is down vol 2")
         }
+
 
 
 		_ , err = conn.WriteToUDP(responce , senderAddr)
