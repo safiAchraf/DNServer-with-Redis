@@ -85,7 +85,7 @@ func main() {
         if err != nil{
             fmt.Printf("the world is down")
         }
-        responce , err := HandleDNSquery(buffer[:n] , upsteam)
+        responce , err := HandleDNSquery(buffer[:n] , upsteam , )
         if err != nil {
             fmt.Printf("the world is down vol 2")
         }
