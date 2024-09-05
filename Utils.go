@@ -13,7 +13,6 @@ func ExtractTTL(response []byte) (time.Duration, error) {
 		return 0, fmt.Errorf("response too short to extract TTL")
 	}
 
-	// Skip the header and question section to find the answer section
 	offset := 12
 	for {
 		labelLen := int(response[offset])
@@ -23,7 +22,7 @@ func ExtractTTL(response []byte) (time.Duration, error) {
 		}
 		offset += labelLen
 	}
-	offset += 4 // Skip QTYPE and QCLASS
+	offset += 4 
 
 	if len(response) < offset+4 {
 		return 0, fmt.Errorf("response too short to extract TTL")

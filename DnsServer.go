@@ -70,6 +70,11 @@ func main() {
 		Addr: "localhost:6379", 
 		DB:   0,                
 	})
+	err := rdb.Ping(context.Background()).Err()
+	if err!= nil{
+		fmt.Println("REDIS INSTANACE COULD NOT BE REACHED AT PORT 6379")
+		return
+	}
 
 	addr , err := net.ResolveUDPAddr("udp" , ":8080")
 	if err != nil {
@@ -98,8 +103,6 @@ func main() {
         if err != nil {
             fmt.Printf("the world is down vol 2")
         }
-
-
 
 		_ , err = conn.WriteToUDP(responce , senderAddr)
 		if err != nil {

@@ -42,7 +42,6 @@ func cacheDNSResponse(ctx context.Context,client *redis.Client, question string,
 	return client.Set(ctx, question, response, ttl).Err()
 }
 
-// getCachedDNSResponse checks if a DNS response is cached in Redis
 func getCachedDNSResponse(ctx context.Context , client *redis.Client, question string) ([]byte, error) {
 	return client.Get(ctx, question).Bytes()
 }
