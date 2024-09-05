@@ -50,5 +50,5 @@ docker run -p 53:53/udp -p 6379:6379 <image_name>
 
 ## Usage 
 Once the DNS server is running, you can test it using the dig command, which allows you to query DNS servers. Here's an example:
-![example command](https://i.ibb.co/6Hm97Q5/Screenshot-2024-09-05-191901.png)
+![example command](https://i.postimg.cc/KYpzDZtq/Screenshot-2024-09-05-191901.png)
 
